@@ -17,7 +17,10 @@ import android.graphics.Color
 import android.text.InputType
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import com.google.mlkit.common.model.DownloadConditions
 import com.google.mlkit.nl.translate.*
 import com.tanvir.voiceassistant.data.LocalStore
@@ -31,6 +34,7 @@ import java.util.Locale
 import kotlin.concurrent.thread
 
 class MainActivity : Activity(), TextToSpeech.OnInitListener {
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private lateinit var store: LocalStore
     private lateinit var models: BengaliModelManager
     private lateinit var tts: TextToSpeech
@@ -316,7 +320,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == 77 && resultCode == RESULT_OK) {
             val uri = data?.data ?: return
-            lifecycleScope.launch {
+            appScope.launch {
                 setStatus("WAV ফাইল ট্রান্সক্রাইব হচ্ছে…")
                 try {
                     val bytes = withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -464,6 +468,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         tts.stop()
         tts.shutdown()
         store.close()
+        appScope.cancel()
         super.onDestroy()
     }
 }
