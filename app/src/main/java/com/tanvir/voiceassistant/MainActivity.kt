@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.media.MediaPlayer
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.speech.tts.TextToSpeech
@@ -48,6 +49,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
     @Volatile private var paused = false
     private var captureThread: Thread? = null
     private var latestAudio: File? = null
+    private var playback: MediaPlayer? = null
     private var translator: Translator? = null
     private var sourceLang = TranslateLanguage.BENGALI
     private var targetLang = TranslateLanguage.ENGLISH
@@ -242,7 +244,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         asr = null
         audioRecord?.release()
         audioRecord = null
-        if (finalText.isNotBlank() && ::editor.isInitialized) editor.setText(finalText)
+        if (finalText.isNotBlank() && ::editor.isInitialized) editor.setText(applyPersonalVocabulary(finalText))
         if (::editor.isInitialized && editor.text.isNotBlank()) saveText("Voice transcription", "transcription")
         setStatus("রেকর্ডিং লোকালি সেভ হয়েছে")
     }
@@ -304,13 +306,33 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         }
         button("Play latest recording") {
             val file = latestAudio
-            if (file == null || !file.exists()) setStatus("কোনো রেকর্ডিং পাওয়া যায়নি")
-            else {
-                val intent = Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(android.net.Uri.fromFile(file), "audio/wav")
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            if (file == null || !file.exists()) {
+                setStatus("কোনো রেকর্ডিং পাওয়া যায়নি")
+            } else {
+                try {
+                    playback?.release()
+                    playback = MediaPlayer().apply {
+                        setDataSource(file.absolutePath)
+                        setOnCompletionListener { player ->
+                            player.release()
+                            if (playback === player) playback = null
+                            setStatus("অডিও প্লেব্যাক শেষ")
+                        }
+                        setOnErrorListener { player, _, _ ->
+                            player.release()
+                            if (playback === player) playback = null
+                            setStatus("অডিও চালানো যায়নি")
+                            true
+                        }
+                        prepare()
+                        start()
+                    }
+                    setStatus("রেকর্ডিং প্লে হচ্ছে")
+                } catch (error: Exception) {
+                    playback?.release()
+                    playback = null
+                    setStatus("অডিও চালানো যায়নি: " + (error.localizedMessage ?: ""))
                 }
-                try { startActivity(intent) } catch (_: Exception) { setStatus("WAV player পাওয়া যায়নি") }
             }
         }
     }
@@ -350,8 +372,9 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
                         }
                         modelEngine.finish()
                     }
-                    if (::editor.isInitialized) editor.setText(result)
-                    store.save("Imported WAV transcription", result, "transcription")
+                    val cleanedResult = applyPersonalVocabulary(result)
+                    if (::editor.isInitialized) editor.setText(cleanedResult)
+                    store.save("Imported WAV transcription", cleanedResult, "transcription")
                     setStatus("WAV ট্রান্সক্রিপশন সম্পন্ন (" + sampleRate + " Hz input)")
                 } catch (error: Exception) {
                     setStatus("WAV ট্রান্সক্রিপশন ব্যর্থ: " + (error.localizedMessage ?: ""))
@@ -424,6 +447,14 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         note("Engine: sherpa-onnx streaming Zipformer Bengali (Vosk-derived). Bengali model only; Bengali-English mixed recognition needs separate device testing. The model does not promise perfect punctuation or 100% accuracy.")
     }
 
+    private fun applyPersonalVocabulary(raw: String): String {
+        var result = raw
+        for (term in store.vocabulary()) {
+            result = result.replace(Regex(Regex.escape(term), RegexOption.IGNORE_CASE), term)
+        }
+        return result
+    }
+
     private fun saveText(title: String, kind: String) {
         if (!::editor.isInitialized || editor.text.isBlank()) { setStatus("সেভ করার মতো লেখা নেই"); return }
         store.save(title, editor.text.toString(), kind)
@@ -465,6 +496,8 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         asr?.close()
         audioRecord?.release()
         translator?.close()
+        playback?.release()
+        playback = null
         tts.stop()
         tts.shutdown()
         store.close()
