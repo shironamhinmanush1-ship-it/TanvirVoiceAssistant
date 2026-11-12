@@ -406,7 +406,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         note(if (models.isInstalled()) "বাংলা ASR মডেল ইনস্টল আছে। ভয়েস রেকগনিশন ডিভাইসেই চলবে।" else "বাংলা ASR মডেল ইনস্টল নেই। ডাউনলোড করতে ইন্টারনেট লাগবে।")
         button("Download & install Bengali model (~90 MB)") {
             setStatus("বাংলা মডেল ডাউনলোড হচ্ছে…")
-            lifecycleScope.launch {
+            appScope.launch {
                 try {
                     models.install { percent -> runOnUiThread { setStatus("মডেল ডাউনলোড ও ইনস্টল: " + percent + "%") } }
                     setStatus("বাংলা অফলাইন ASR মডেল প্রস্তুত")
