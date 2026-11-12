@@ -25,6 +25,7 @@ import com.tanvir.voiceassistant.engine.BengaliAsrEngine
 import com.tanvir.voiceassistant.engine.BengaliModelManager
 import com.tanvir.voiceassistant.engine.WavWriter
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Locale
 import kotlin.concurrent.thread
@@ -325,7 +326,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
                     val sampleRate = littleInt(bytes, 24)
                     val channels = littleShort(bytes, 22)
                     val bits = littleShort(bytes, 34)
-                    if (channels != 1 || bits != 16) throw IllegalArgumentException("WAV mono 16-bit হতে হবে")
+                    if (channels != 1 || bits != 16 || sampleRate != 16000) throw IllegalArgumentException("WAV mono 16-bit, 16 kHz হতে হবে")
                     val modelEngine = BengaliAsrEngine(models.modelDirectory)
                     val result = withContext(kotlinx.coroutines.Dispatchers.Default) {
                         modelEngine.start()
