@@ -3,7 +3,7 @@ package com.tanvir.voiceassistant.engine
 import com.k2fsa.sherpa.onnx.*
 import java.io.File
 
-class BengaliAsrEngine(modelDirectory: File) {
+class BengaliAsrEngine(private val modelDirectory: File) {
     private var recognizer: OnlineRecognizer? = null
     private var stream: OnlineStream? = null
     private var committed = ""
